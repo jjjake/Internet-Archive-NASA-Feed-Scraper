@@ -6,6 +6,7 @@ import urllib
 import lxml.html
 
 import feedparser
+import chardet
 
 def dlog(logger):
     date = datetime.date.today().strftime('%Y-%m-%d')
@@ -33,11 +34,13 @@ def getFeedList():
     return feedList
 
 def main():
+    bozoLogger = dlog('root.bozo')
     for feed in getFeedList():
         parsed = feedparser.parse(feed)
-        bozo = parsed.bozo
-        print '\n\n----\n\n'
-        dlog('root.bozo').warning('%s is a bozo!' % feed)
+        print '\n\n-----\n\n'
+        if parsed.bozo == 1: bozoLogger.warning('%s is a bozo!' % feed)
+        for entry in parsed.entries:
+            d = entry.description
 
 if __name__ == "__main__":
     main()
