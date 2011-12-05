@@ -1,10 +1,10 @@
 #!/1/data/ENV/bin/python
 
-import logging,logging.conf
+import logging,logging.config
 import datetime,time
 import urllib
 import lxml.html
-from subrpocess import call
+from subprocess import call
 from lxml import etree
 import re
 import os
