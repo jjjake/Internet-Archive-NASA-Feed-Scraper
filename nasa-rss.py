@@ -24,14 +24,10 @@ def getFeedList():
     return feedList
 
 def checkArchive(identifier):
-    check_item = ( '/usr/bin/curl -s --location "http://www.archive.org'
-                   '/services/check_identifier.php?identifier=%s"'
-                   '| if grep -q "not_available"; then return 1; fi' %
-                   identifier )
-    retcode = call(check_item, shell = True)
-    if retcode !=0: cLogger.info('%s is already in the Archive, SKIPPING' %
-                                 identifier)
-    return retcode
+    url = "http://www.archive.org/services/check_identifier.php?identifier="
+    retMessage = etree.parse(url + identifier).getroot().findtext('message')
+    if retMessage == 'The identifier you have chosen is available': return 0
+    else: return 1
 
 def mkdir(dirname):                                                                                     
     if not os.path.exists(dirname):                                                                     
@@ -50,7 +46,11 @@ def makeMeta(metaDict):
                              xml_declaration=True, encoding="utf-8")                                    
     ff = open("%s_meta.xml" % metaDict['identifier'], "wb")                                             
     ff.write(metaXml)                                                                                   
-    ff.close()     
+    ff.close()
+
+def wget(mediaLink):
+    wget = '"wget -nc %s"' % mediaLink
+    retcode = call(wget,shell=True)
 
 def main():                                                                  
     mkdir('nasa-rss')    
@@ -63,7 +63,9 @@ def main():
             metaDict = {}                                                                               
             try:                                                                                        
                 metaDict['fname'] = entry.media_content[0]['url'].split('/')[-1]                        
-                metaDict['identifier'] = metaDict['fname'].split('.')[0]                                
+                identifier = ( entry.media_content[0]['url'].split('/')
+                               [-1].split('.')[0] )
+                metaDict['identifier'] = identifier.replace('_full','')
                 if checkArchive(metaDict['identifier']) != 0: continue                                  
                 mkdir(metaDict['identifier'])                                                           
                 ### re.sub('<[^<]+?> strips HTML tags from description                                  
@@ -72,7 +74,9 @@ def main():
                 metaDict['title'] = entry.title                                                         
                 metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
                 metaDict['date'] = time.strftime("%Y-%m-%d", entry.updated_parsed)                      
-                metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]                    
+                metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]
+                makeMeta(metaDict)
+                wget(entry.media_content[0]['url'])
             except AttributeError:                                                                      
                 noMedia = "%s doesn't appear to have any media!" % entry.links[0].href                  
                 logging.warning(noMedia)                                                                
