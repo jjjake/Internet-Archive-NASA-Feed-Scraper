@@ -1,5 +1,11 @@
 #!/1/data/ENV/bin/python
 
+
+"""
+Facets: petabox/sw/nasa/facets/driver.pl
+./driver.pl --rule $facet_file --metadata $metadata_file --output $outputfile --ignorefile $ignore_path/$ignore_file --archivemode --unfilteredfile $unfilteredfile 2> /dev/null";
+"""
+
 import logging,logging.config
 import datetime,time
 import urllib
@@ -49,7 +55,7 @@ def makeMeta(metaDict):
     ff.close()
 
 def wget(mediaLink):
-    wget = '"wget -nc %s"' % mediaLink
+    wget = 'wget -nc %s' % mediaLink
     retcode = call(wget,shell=True)
 
 def main():                                                                  
@@ -57,26 +63,29 @@ def main():
     home = os.getcwd()            
     for feed in getFeedList():
         parsed = feedparser.parse(feed)                                                                 
-        print '\n\n------------------------\n\n'                                                        
         if parsed.bozo == 1: logging.warning('%s is a bozo!' % feed)                                    
         for entry in parsed.entries:                                                                    
             metaDict = {}                                                                               
             try:                                                                                        
-                metaDict['fname'] = entry.media_content[0]['url'].split('/')[-1]                        
+                #metaDict['fname'] = entry.media_content[0]['url'].split('/')[-1]                        
                 identifier = ( entry.media_content[0]['url'].split('/')
                                [-1].split('.')[0] )
                 metaDict['identifier'] = identifier.replace('_full','')
-                if checkArchive(metaDict['identifier']) != 0: continue                                  
+                if checkArchive(metaDict['identifier']) != 0: 
+                    cLogger.info('the identifier "%s" is not available' % 
+                                 metaDict['identifier'] )
+                    continue                                  
                 mkdir(metaDict['identifier'])                                                           
                 ### re.sub('<[^<]+?> strips HTML tags from description                                  
-                metaDict['description'] = re.sub('<[^<]+?>', '', entry.description)                     
+                metaDict['description'] = re.sub('<[^<]+?>', '', entry.description).strip()
                 metaDict['source'] = entry.link                                                         
                 metaDict['title'] = entry.title                                                         
                 metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
                 metaDict['date'] = time.strftime("%Y-%m-%d", entry.updated_parsed)                      
                 metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]
-                makeMeta(metaDict)
-                wget(entry.media_content[0]['url'])
+                print entry.media_keywords
+               # makeMeta(metaDict)
+               # wget(entry.media_content[0]['url'])
             except AttributeError:                                                                      
                 noMedia = "%s doesn't appear to have any media!" % entry.links[0].href                  
                 logging.warning(noMedia)                                                                
