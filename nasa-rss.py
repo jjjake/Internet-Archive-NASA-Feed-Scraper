@@ -1,4 +1,4 @@
-#!/1/data/ENV/bin/python
+#!/usr/bin/env python
 
 
 """
@@ -40,6 +40,18 @@ def mkdir(dirname):
         os.mkdir(dirname)                                                                               
     os.chdir(dirname)        
 
+def facet_dict(string):
+    facet_list = open('/Users/jake/Desktop/Internet-Archive-NASA-Feed-Scraper/facets.txt','rb').read().split('\n')
+    dictionary = {}
+    for facet in facet_list:
+        k,v = facet.split(',')[0], facet.split(',')[-1]
+        dictionary[k] = v
+    faceted = {}
+    for k,v in dictionary.iteritems():
+        if k in string:
+            faceted[k] = v
+    return faceted
+
 def makeMeta(metaDict):                                                                                 
     f = open("%s_files.xml" % metaDict['identifier'], "wb")                                             
     f.write("</files>")                                                                                 
@@ -50,6 +62,7 @@ def makeMeta(metaDict):
         subElement.text = v                                                                             
     metaXml = etree.tostring(root, pretty_print=True,                                                   
                              xml_declaration=True, encoding="utf-8")                                    
+    return metaXml
     ff = open("%s_meta.xml" % metaDict['identifier'], "wb")                                             
     ff.write(metaXml)                                                                                   
     ff.close()
@@ -83,9 +96,19 @@ def main():
                 metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
                 metaDict['date'] = time.strftime("%Y-%m-%d", entry.updated_parsed)                      
                 metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]
-                print entry.media_keywords
-               # makeMeta(metaDict)
-               # wget(entry.media_content[0]['url'])
+
+                # Generate facets, and create subjects
+                facet_string = '%s %s %s' % (metaDict['description'],metaDict['title'],entry['media_keywords'])
+                fdict = facet_dict(metaDict['description'])
+                fl = []
+                for k,v in fdict.iteritems():
+                    if k:
+                        fl.append(('%s %s' % (v,k)))
+                if fl:
+                    metaDict['subject'] = ';'.join(fl)
+
+                makeMeta(metaDict)
+                wget(entry.media_content[0]['url'])
             except AttributeError:                                                                      
                 noMedia = "%s doesn't appear to have any media!" % entry.links[0].href                  
                 logging.warning(noMedia)                                                                
