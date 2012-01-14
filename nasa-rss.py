@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 
-
-"""
-Facets: petabox/sw/nasa/facets/driver.pl
-./driver.pl --rule $facet_file --metadata $metadata_file --output $outputfile --ignorefile $ignore_path/$ignore_file --archivemode --unfilteredfile $unfilteredfile 2> /dev/null";
-"""
-
 import logging,logging.config
 import datetime,time
 import urllib
@@ -18,6 +12,7 @@ import os
 import feedparser
 
 
+rootDir = os.getcwd()
 logging.config.fileConfig('logging.conf')
 cLogger = logging.getLogger('console')
 
@@ -32,8 +27,10 @@ def getFeedList():
 def checkArchive(identifier):
     url = "http://www.archive.org/services/check_identifier.php?identifier="
     retMessage = etree.parse(url + identifier).getroot().findtext('message')
-    if retMessage == 'The identifier you have chosen is available': return 0
-    else: return 1
+    if retMessage == 'The identifier you have chosen is available': 
+        return 0
+    else: 
+        return 1
 
 def mkdir(dirname):                                                                                     
     if not os.path.exists(dirname):                                                                     
@@ -41,7 +38,8 @@ def mkdir(dirname):
     os.chdir(dirname)        
 
 def facet_dict(string):
-    facet_list = open('/Users/jake/Desktop/Internet-Archive-NASA-Feed-Scraper/facets.txt','rb').read().split('\n')
+    facet_file = '%s/facets.txt' % (rootDir)
+    facet_list = open(facet_file,'rb').read().split('\n')
     dictionary = {}
     for facet in facet_list:
         k,v = facet.split(',')[0], facet.split(',')[-1]
@@ -53,6 +51,7 @@ def facet_dict(string):
     return faceted
 
 def makeMeta(metaDict):                                                                                 
+    # Generate {item}_files.xml stub and {item}_meta.xml from metaDict
     f = open("%s_files.xml" % metaDict['identifier'], "wb")                                             
     f.write("</files>")                                                                                 
     f.close()                                                                                           
@@ -62,7 +61,6 @@ def makeMeta(metaDict):
         subElement.text = v                                                                             
     metaXml = etree.tostring(root, pretty_print=True,                                                   
                              xml_declaration=True, encoding="utf-8")                                    
-    return metaXml
     ff = open("%s_meta.xml" % metaDict['identifier'], "wb")                                             
     ff.write(metaXml)                                                                                   
     ff.close()
@@ -72,7 +70,7 @@ def wget(mediaLink):
     retcode = call(wget,shell=True)
 
 def main():                                                                  
-    mkdir('nasa-rss')    
+    mkdir('/1/incoming/tmp/nasa-rss')    
     home = os.getcwd()            
     for feed in getFeedList():
         parsed = feedparser.parse(feed)                                                                 
@@ -80,7 +78,6 @@ def main():
         for entry in parsed.entries:                                                                    
             metaDict = {}                                                                               
             try:                                                                                        
-                #metaDict['fname'] = entry.media_content[0]['url'].split('/')[-1]                        
                 identifier = ( entry.media_content[0]['url'].split('/')
                                [-1].split('.')[0] )
                 metaDict['identifier'] = identifier.replace('_full','')
@@ -89,8 +86,9 @@ def main():
                                  metaDict['identifier'] )
                     continue                                  
                 mkdir(metaDict['identifier'])                                                           
-                ### re.sub('<[^<]+?> strips HTML tags from description                                  
-                metaDict['description'] = re.sub('<[^<]+?>', '', entry.description).strip()
+                # re.sub('<[^<]+?> strips HTML tags from description                                  
+                metaDict['description'] = re.sub('<[^<]+?>', '', 
+                                                 entry.description).strip()
                 metaDict['source'] = entry.link                                                         
                 metaDict['title'] = entry.title                                                         
                 metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
@@ -98,8 +96,11 @@ def main():
                 metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]
 
                 # Generate facets, and create subjects
-                facet_string = '%s %s %s' % (metaDict['description'],metaDict['title'],entry['media_keywords'])
-                fdict = facet_dict(metaDict['description'])
+                facet_string = '%s %s %s' % (metaDict['description'],
+                                             metaDict['title'],
+                                             entry['media_keywords'])
+                fdict = facet_dict(facet_string)
+                print fdict
                 fl = []
                 for k,v in fdict.iteritems():
                     if k:
@@ -107,10 +108,11 @@ def main():
                 if fl:
                     metaDict['subject'] = ';'.join(fl)
 
-                makeMeta(metaDict)
-                wget(entry.media_content[0]['url'])
+#                makeMeta(metaDict)
+#                wget(entry.media_content[0]['url'])
             except AttributeError:                                                                      
-                noMedia = "%s doesn't appear to have any media!" % entry.links[0].href                  
+                noMedia = ("%s doesn't appear to have any media!" % 
+                           entry.links[0].href)                 
                 logging.warning(noMedia)                                                                
             os.chdir(home)           
 
