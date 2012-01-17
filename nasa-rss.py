@@ -24,6 +24,11 @@ def get_feed_list():
     feedList = list(set(feedList))
     return feedList
 
+def mkdir(dirname):                                                                                     
+    if not os.path.exists(dirname):                                                                     
+        os.mkdir(dirname)                                                                               
+    os.chdir(dirname)        
+
 def check_archive(identifier):
     url = "http://www.archive.org/services/check_identifier.php?identifier="
     retMessage = etree.parse(url + identifier).getroot().findtext('message')
@@ -32,12 +37,7 @@ def check_archive(identifier):
     else: 
         return 1
 
-def mkdir(dirname):                                                                                     
-    if not os.path.exists(dirname):                                                                     
-        os.mkdir(dirname)                                                                               
-    os.chdir(dirname)        
-
-def build_dict():
+def build_facet_dict():
     facet_file = '/home/jake/facets.txt'
     facet_list = open(facet_file,'rb').read().split('\n')
     dictionary = {}
@@ -64,7 +64,6 @@ def get_phrase(words, phrase_length, start_pos):
     return s[:-1]
 
 def get_facets(string, dictionary, longest_key):
-    # Extract facets from string
     faceted = {}
     words = string.split()
     num_words = len(words)
@@ -85,8 +84,18 @@ def get_facets(string, dictionary, longest_key):
             pos += 1
     return faceted
 
+def build_collection_dict():
+    collection_file = '/home/jake/rsscollections.txt'
+    collection_list = open(collection_file,'rb').read().split('\n')
+    dictionary = {}
+    for collection in collection_list:
+        k,v = collection.split(',')[0], collection.split(',')[-1]
+        dictionary[v] = k
+        if not k:
+            continue
+    return dictionary
+
 def make_meta(metaDict):                                                                                 
-    # Generate {item}_files.xml stub and {item}_meta.xml from metaDict
     f = open("%s_files.xml" % metaDict['identifier'], "wb")                                             
     f.write("</files>")                                                                                 
     f.close()                                                                                           
@@ -108,11 +117,18 @@ def wget(mediaLink):
 def main():                                                                  
     mkdir('/1/incoming/tmp/nasa-rss')    
     home = os.getcwd()            
+
+    # Build facet and collection dictionaries.
+    facet_dict, longest_key = build_facet_dict()
+    collection_dict = build_collection_dict()
+
     for feed in get_feed_list():
         parsed = feedparser.parse(feed)                                                                 
-        if parsed.bozo == 1: logging.warning('%s is a bozo!' % feed)                                    
+        if parsed.bozo == 1: 
+            logging.warning('%s is a bozo!' % feed)                                    
         for entry in parsed.entries:                                                                    
             metaDict = {}                                                                               
+
             try:                                                                                        
                 identifier = ( entry.media_content[0]['url'].split('/')
                                [-1].split('.')[0] )
@@ -122,9 +138,11 @@ def main():
                                  metaDict['identifier'] )
                     continue                                  
                 mkdir(metaDict['identifier'])                                                           
+
                 # re.sub('<[^<]+?> strips HTML tags from description                                  
                 metaDict['description'] = re.sub('<[^<]+?>', '', 
                                                  entry.description).strip()
+                metaDict['collection'] = collection_dict[feed]
                 metaDict['source'] = entry.link                                                         
                 metaDict['title'] = entry.title                                                         
                 metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
@@ -135,8 +153,7 @@ def main():
                 facet_string = '%s %s %s' % (metaDict['description'],
                                              metaDict['title'],
                                              entry['media_keywords'])
-                facet_dict, logest_key = build_dict()
-                facets = get_facets(facet_string, facet_dict, logest_key)
+                facets = get_facets(facet_string, facet_dict, longest_key)
                 facet_list = []
                 for v in facets.itervalues():
                     facet_list.append(v)
@@ -145,10 +162,12 @@ def main():
 
                 make_meta(metaDict)
                 wget(entry.media_content[0]['url'])
+
             except AttributeError:                                                                      
                 noMedia = ("%s doesn't appear to have any media!" % 
                            entry.links[0].href)                 
                 logging.warning(noMedia)                                                                
+
             os.chdir(home)           
 
 if __name__ == "__main__":
