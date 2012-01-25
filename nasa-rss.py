@@ -5,14 +5,15 @@ import datetime,time
 import urllib
 import lxml.html
 from subprocess import call
-from lxml import etree
 import re
 import os
 
 import feedparser
 
+import ia
 
-rootDir = os.getcwd()
+
+root_dir = os.getcwd()
 logging.config.fileConfig('logging.conf')
 cLogger = logging.getLogger('console')
 
@@ -23,66 +24,6 @@ def get_feed_list():
                  'rss')])
     feedList = list(set(feedList))
     return feedList
-
-def mkdir(dirname):                                                                                     
-    if not os.path.exists(dirname):                                                                     
-        os.mkdir(dirname)                                                                               
-    os.chdir(dirname)        
-
-def check_archive(identifier):
-    url = "http://www.archive.org/services/check_identifier.php?identifier="
-    retMessage = etree.parse(url + identifier).getroot().findtext('message')
-    if retMessage == 'The identifier you have chosen is available': 
-        return 0
-    else: 
-        return 1
-
-def build_facet_dict():
-    facet_file = '/home/jake/facets.txt'
-    facet_list = open(facet_file,'rb').read().split('\n')
-    dictionary = {}
-    max_words_in_key = 0
-    for facet in facet_list:
-        k,v = facet.split(',')[0], facet.split(',')[-1]
-        k = k.strip().lower()
-        if not k:
-            continue
-        words_in_key = len(k.split(' '))
-        if words_in_key > max_words_in_key:
-            max_words_in_key = words_in_key
-        dictionary[k] = v.strip()
-    return dictionary, max_words_in_key
-
-def get_phrase(words, phrase_length, start_pos):
-    s = ''
-    for i in range(phrase_length):
-        s += words[start_pos+i] + ' '
-        exclude =set(['!', '#', '"', '%', '$', "'", '&', ')', '(', '+', '*', ',',
-                      '/', '.', ';', ':', '=', '<', '?', '>', '@', '[', ']', '\\',
-                      '^', '`', '{', '}', '|', '~'])
-        s = ''.join(ch for ch in s if ch not in exclude)
-    return s[:-1]
-
-def get_facets(string, dictionary, longest_key):
-    faceted = {}
-    words = string.split()
-    num_words = len(words)
-    pos = 0
-    while pos < num_words:
-        phrase_length = min(longest_key, num_words-pos)
-        found_phrase = False
-        while phrase_length > 0:
-            phrase = get_phrase(words, phrase_length, pos)
-            if phrase.lower() in dictionary:
-                found_phrase = phrase.lower()
-                break
-            phrase_length -= 1
-        if False != found_phrase:
-            faceted[found_phrase] = dictionary[found_phrase]
-            pos += phrase_length
-        else:
-            pos += 1
-    return faceted
 
 def build_collection_dict():
     collection_file = '/home/jake/rsscollections.txt'
@@ -95,31 +36,18 @@ def build_collection_dict():
             continue
     return dictionary
 
-def make_meta(metaDict):                                                                                 
-    f = open("%s_files.xml" % metaDict['identifier'], "wb")                                             
-    f.write("</files>")                                                                                 
-    f.close()                                                                                           
-    root = etree.Element("metadata")                                                                    
-    for k,v in metaDict.iteritems():                                                                    
-        subElement = etree.SubElement(root,k)                                                           
-        subElement.text = v                                                                             
-    metaXml = etree.tostring(root, pretty_print=True,                                                   
-                             xml_declaration=True, encoding="utf-8")                                    
-    print metaXml
-    ff = open("%s_meta.xml" % metaDict['identifier'], "wb")                                             
-    ff.write(metaXml)                                                                                   
-    ff.close()
-
 def wget(mediaLink):
-    wget = 'wget -nc %s' % mediaLink
+    wget = 'wget -q -nc %s' % mediaLink
     retcode = call(wget,shell=True)
 
 def main():                                                                  
-    mkdir('/1/incoming/tmp/nasa-rss')    
+    ia.make('/1/incoming/tmp/nasa-rss').dir()
     home = os.getcwd()            
 
     # Build facet and collection dictionaries.
-    facet_dict, longest_key = build_facet_dict()
+    facet_file = os.path.join(root_dir, 'facets.txt')
+    facet = ia.facets(facet_file)
+    facet_dict, longest_key = facet.build_dict()
     collection_dict = build_collection_dict()
 
     for feed in get_feed_list():
@@ -133,11 +61,14 @@ def main():
                 identifier = ( entry.media_content[0]['url'].split('/')
                                [-1].split('.')[0] )
                 metaDict['identifier'] = identifier.replace('_full','')
-                if check_archive(metaDict['identifier']) != 0: 
-                    cLogger.info('the identifier "%s" is not available' % 
+                print '\n\n~~~~\n\nCreating item: %s\n\n' % metaDict['identifier']
+
+                if ia.details(metaDict['identifier']).exists():
+                    cLogger.info('the identifier "%s" is not available' %
                                  metaDict['identifier'] )
-                    continue                                  
-                mkdir(metaDict['identifier'])                                                           
+                    continue
+
+                ia.make(metaDict['identifier']).dir()
 
                 # re.sub('<[^<]+?> strips HTML tags from description                                  
                 metaDict['description'] = re.sub('<[^<]+?>', '', 
@@ -153,14 +84,16 @@ def main():
                 facet_string = '%s %s %s' % (metaDict['description'],
                                              metaDict['title'],
                                              entry['media_keywords'])
-                facets = get_facets(facet_string, facet_dict, longest_key)
+                facet_dict = facet.get_facets(facet_string, facet_dict, longest_key)
                 facet_list = []
-                for v in facets.itervalues():
+                for v in facet_dict.itervalues():
                     facet_list.append(v)
                 if facet_list:
                     metaDict['subject'] = ';'.join(facet_list)
 
-                make_meta(metaDict)
+                cLogger.info('Generating Metadata files')
+                ia.make(metaDict['identifier'], metaDict).metadata()
+                cLogger.info('Downloading images')
                 wget(entry.media_content[0]['url'])
 
             except AttributeError:                                                                      
