@@ -51,6 +51,10 @@ def main():
     collection_dict = build_collection_dict()
 
     for feed in get_feed_list():
+        if not feed in collection_dict:
+            logging.warning('This feed needs to be assigned a collection: %s' % feed)
+            continue
+
         parsed = feedparser.parse(feed)                                                                 
         if parsed.bozo == 1: 
             logging.warning('%s is a bozo!' % feed)                                    
@@ -63,7 +67,7 @@ def main():
                 metaDict['identifier'] = identifier.replace('_full','')
                 print '\n\n~~~~\n\nCreating item: %s\n\n' % metaDict['identifier']
 
-                if ia.details(metaDict['identifier']).exists():
+                if ia.details(metaDict['identifier']).exists() or ia.details(identifier).exists():
                     cLogger.info('the identifier "%s" is not available' %
                                  metaDict['identifier'] )
                     continue
