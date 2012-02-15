@@ -6,6 +6,7 @@ import simplejson
 from urllib import urlencode
 from lxml import etree
 import re
+import lxml.html
 
 
 class details:
@@ -39,10 +40,18 @@ class parse:
 
     def __init__(self, url, params=None):
         self.request = requests.get(url=url, params=params)
-        self.json_str = simplejson.loads(self.request.content)
 
     def json(self):
+        self.json_str = simplejson.loads(self.request.content)
         return self.json_str
+
+    def html(self):
+        self.html = lxml.html.fromstring(self.request.content)
+        return self.html
+    
+    def html_links(self):
+        links = [ x for x in self.html().iterlinks() ]
+        return links
 
 
 class make:
