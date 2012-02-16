@@ -13,10 +13,7 @@
 
     TODO:
     * Generalize the script for to work for any Youtube channel/user.
-    * Make sure facets are working.
-    * Turn facets into meta_dict['subject']
 
-    -- Jake Johnson
 """
 
 
@@ -88,12 +85,14 @@ def main():
                 # Create facets for each item.
                 facet_str = "%s %s" % (meta_dict['description'], 
                                        meta_dict['subject'])
-                facet_dict = facet.get_facets(facet_string, facet_dict, 
-                                              longest_key)
-                # Create the meatadata files.
-                ia.make(identifier, meta_dict)
+                returned_facets = facet.get_facets(facet_str, facet_dict, 
+                                                   longest_key)
+                meta_dict['subject'] = ';'.join(v for v in returned_facets.values())
+                ## Create the meatadata files.
+                #ia.make(identifier, meta_dict)
                 # Download the video.
-                download = 'yt-download %s' % videoid
+                download = ('youtube-dl %s -o %s.%%(ext)s' % 
+                            (meta_dict['videoid'], identifier)
                 call(download, shell=True)
 
                 os.chdir(home_dir)
