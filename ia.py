@@ -75,11 +75,6 @@ class make:
         ff.write(metaXml)
         ff.close()
 
-    def dir(self):
-        if not os.path.exists(self.identifier):
-            os.mkdir(self.identifier)
-        os.chdir(self.identifier)
-
 
 class perpetual_loop:
 
