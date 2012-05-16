@@ -12,9 +12,10 @@ from subprocess import call
 import ia
 
 
-ROOT_DIR = os.getcwd()
-HOME_DIR = os.getcwd()
+ROOT_DIR = os.path.dirname(__file__)
 DOWNLOAD_DIR = '/1/incoming/tmp/nasa-rss'
+FACET_FILE = os.path.join(ROOT_DIR, 'facets.txt')
+RSS_COLLECTIONS = os.path.join(ROOT_DIR, 'rsscollections.txt')
 
 logging.config.fileConfig('logging.conf')
 console_logger = logging.getLogger('console')
@@ -31,8 +32,7 @@ def get_feed_list():
 
 #______________________________________________________________________________
 def build_collection_dict():
-    collection_file = open('./rsscollections.txt').readlines()
-    collection_list = [x.strip() for x in collection_file]
+    collection_list = [x.strip() for x in open(RSS_COLLECTIONS).readlines()]
     dictionary = {}
     for collection in collection_list:
         k,v = collection.split(',')[-1], collection.split(',')[0]
@@ -49,9 +49,7 @@ def wget(mediaLink):
 #______________________________________________________________________________
 def main():
     mkdir(DOWNLOAD_DIR)
-    os.chdir(HOME_DIR)
-    facet_file = os.path.join(ROOT_DIR, 'facets.txt')
-    facet = ia.facets(facet_file)
+    facet = ia.facets(FACET_FILE)
     facet_dict, longest_key = facet.build_dict()
     collection_dict = build_collection_dict()
     for feed in get_feed_list():
@@ -65,13 +63,12 @@ def main():
             try:
                 long_id = ( entry.media_content[0]['url'].split('/') [-1].split('.')[0] )
                 identifier = long_id.replace('_full','').replace('-full','')
-
                 # Avoid duplicating items on archive.org
                 if ia.details(identifier).exists() or ia.details(long_id).exists():
-                    console_logger.info('SKIPPING :: %s already exists!' % identifier )
+                    #console_logger.info('SKIPPING :: %s already exists!' % identifier )
                     continue
 
-                """ CREATE ITEM >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> """
+                """ CREATE ITEM >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> """
                 logging.info('CREATING :: %s' % identifier)
                 mkdir(identifier)
                 meta_dict = {'description': re.sub('<[^<]+?>', '', entry.description).strip(),
@@ -92,14 +89,15 @@ def main():
                 #    facet_list.append(v)
                 if facet_list:
                     meta_dict['subject'] = ';'.join(facet_list)
-                console_logger.info('Generating Metadata files')
-                ia.make(meta_dict['identifier'], meta_dict).metadata()
-                console_logger.info('Downloading images')
+                #console_logger.info('Generating Metadata files')
+                os.chdir(os.path.join(DOWNLOAD_DIR, identifier))
+                ia.make(identifier, meta_dict).metadata()
+                #console_logger.info('Downloading images')
                 wget(entry.media_content[0]['url'])
                 """ <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< CREATED ITEM """
 
             except Exception, e:
-                logging.error(e)
+                logging.error(identifier, e)
                 pass
 if __name__ == "__main__":
     main()
