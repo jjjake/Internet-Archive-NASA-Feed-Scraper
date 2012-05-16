@@ -8171,6 +8171,7 @@ Thaicom 5, What -- Thaicom 5
 Thailand, Where -- Thailand
 Theemim, What -- Theemim
 The Hague, Where -- The Hague
+THEMIS, What -- THEMIS
 THEMIS-A, What -- THEMIS-A
 THEMIS-B, What -- THEMIS-B
 THEMIS-C, What -- THEMIS-C

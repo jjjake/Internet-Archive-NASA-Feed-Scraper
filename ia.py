@@ -30,9 +30,9 @@ class details:
         return self.json_str['dir']
 
     def exists(self):
-        if self.json_str == {}:
+        if self.json_str == None:
             return 0
-        if self.json_str != {}:
+        if self.json_str != None:
             return 1
 
 
@@ -58,7 +58,8 @@ class make:
     
     def __init__(self, identifier, meta_dict=None):
         self.identifier = identifier
-        self.meta_dict = meta_dict
+        if meta_dict:
+            self.meta_dict = dict((k,v) for k,v in meta_dict.items() if v != '')
 
     def metadata(self):
         f = open("%s_files.xml" % self.identifier, "wb")

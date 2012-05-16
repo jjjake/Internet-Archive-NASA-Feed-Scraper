@@ -26,7 +26,7 @@ def get_feed_list():
     return feedList
 
 def build_collection_dict():
-    collection_file = '/home/jake/rsscollections.txt'
+    collection_file = '/home/jake/public_html/Internet-Archive-NASA-Feed-Scraper/rsscollections.txt'
     collection_list = open(collection_file,'rb').read().split('\n')
     dictionary = {}
     for collection in collection_list:
@@ -64,7 +64,7 @@ def main():
             try:                                                                                        
                 identifier = ( entry.media_content[0]['url'].split('/')
                                [-1].split('.')[0] )
-                metaDict['identifier'] = identifier.replace('_full','')
+                metaDict['identifier'] = identifier.replace('_full','').replace('-full','')
                 print '\n\n~~~~\n\nCreating item: %s\n\n' % metaDict['identifier']
 
                 if ia.details(metaDict['identifier']).exists() or ia.details(identifier).exists():
@@ -88,9 +88,9 @@ def main():
                 facet_string = '%s %s %s' % (metaDict['description'],
                                              metaDict['title'],
                                              entry['media_keywords'])
-                facet_dict = facet.get_facets(facet_string, facet_dict, longest_key)
+                item_facets = facet.get_facets(facet_string, facet_dict, longest_key)
                 facet_list = []
-                for v in facet_dict.itervalues():
+                for v in item_facets.itervalues():
                     facet_list.append(v)
                 if facet_list:
                     metaDict['subject'] = ';'.join(facet_list)

@@ -48,7 +48,7 @@ def main():
 
     # Load and create the necessary files and directories.
     root_dir = os.getcwd()
-    ia.make('nasa_youtube').dir()
+    ia.make('/1/incoming/tmp/nasa_youtube').dir()
     home_dir = os.getcwd()
     collections_file = os.path.join(root_dir, 'nasa-youtubes')
     facet_file = os.path.join(root_dir, 'facets.txt')
@@ -57,6 +57,7 @@ def main():
 
     # Parse the Youtube data into JSON objects.
     for channel in open(collections_file):
+        print '\n\n---\n'
         channel_id = channel.split(',')[0]
         collection = channel.split(',')[-1].strip()
         base_url = ('https://gdata.youtube.com/feeds/api/users/%s/uploads' % 
@@ -81,18 +82,28 @@ def main():
                 clean_words = '-'.join([ ''.join(x for x in y if x.isalnum()) 
                                          for y in title_words ])
                 identifier = '%s-%s' % (clean_words[:68], meta_dict['videoid'])
+
+                if ia.details(identifier).exists():
+                    print ('Identifier already exists: "%s", skipping...' % 
+                           identifier)
+                    continue
+
+                print '\nDownloading: %s\n' % identifier
                 ia.make(identifier).dir()
                 # Create facets for each item.
                 facet_str = "%s %s" % (meta_dict['description'], 
                                        meta_dict['subject'])
                 returned_facets = facet.get_facets(facet_str, facet_dict, 
                                                    longest_key)
-                meta_dict['subject'] = ';'.join(v for v in returned_facets.values())
-                ## Create the meatadata files.
-                #ia.make(identifier, meta_dict)
+                meta_dict['subject'] = ';'.join(v for v in 
+                                                returned_facets.values())
+                meta_dict['collection'] = collection
+                meta_dict['mediatype'] = 'movies'
+                # Create the meatadata files.
+                ia.make(identifier, meta_dict).metadata()
                 # Download the video.
-                download = ('youtube-dl %s -o %s.%%(ext)s' % 
-                            (meta_dict['videoid'], identifier)
+                download = ('youtube-dl -c "%s" -o "%s.%%(ext)s"' % 
+                            (meta_dict['videoid'], identifier))
                 call(download, shell=True)
 
                 os.chdir(home_dir)
