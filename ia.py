@@ -13,7 +13,7 @@ class details:
 
     def __init__(self, item):
         self.item = item
-        self.request = requests.get('http://archive.org/metadata/%s' % 
+        self.request = requests.get('http://archive.org/metadata/%s' %
                                     self.item)
         self.headers = self.request.headers
         self.json_str = simplejson.loads(self.request.content)
@@ -48,14 +48,14 @@ class parse:
     def html(self):
         self.html = lxml.html.fromstring(self.request.content)
         return self.html
-    
+
     def html_links(self):
         links = [ x for x in self.html().iterlinks() ]
         return links
 
 
 class make:
-    
+
     def __init__(self, identifier, meta_dict=None):
         self.identifier = identifier
         if meta_dict:
@@ -116,7 +116,7 @@ class perpetual_loop:
         f = open(self.ready_fname,'wb')
         f.write('\n'.join(data_list))
         f.close()
-        os.remove(self.lock_fname)        
+        os.remove(self.lock_fname)
 
 
 class facets:
@@ -138,7 +138,7 @@ class facets:
                 self.max_words_in_key = words_in_key
             self.dictionary[k] = v.strip()
         return self.dictionary, self.max_words_in_key
-    
+
     def get_phrase(self, words, phrase_length, start_pos):
         s = ''
         exclude =set(['!', '#', '"', '%', '$', "'", '&', ')', '(', '+', '*', ',',
@@ -148,28 +148,28 @@ class facets:
             s += words[start_pos+i] + ' '
             s = ''.join(ch for ch in s if ch not in exclude)
         return s[:-1]
-    
+
     def get_facets(self, string, dictionary, longest_key):
         faceted = {}
         words = string.split()
         num_words = len(words)
         pos = 0
-    
+
         while pos < num_words:
             phrase_length = min(longest_key, num_words-pos)
             found_phrase = False
             while phrase_length > 0:
-    
+
                 phrase = self.get_phrase(words, phrase_length, pos)
                 if phrase.lower() in dictionary:
                     found_phrase = phrase.lower()
                     break
                 phrase_length -= 1
-    
+
             if False != found_phrase:
                 faceted[found_phrase] = dictionary[found_phrase]
                 pos += phrase_length
             else:
                 pos += 1
-    
+
         return faceted

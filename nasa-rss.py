@@ -1,112 +1,105 @@
-#!/usr/bin/env python
-
-import logging,logging.config
-import datetime,time
-import urllib
-import lxml.html
-from subprocess import call
-import re
+#!/home/jake/.virtualenvs/nasa-ingest/bin/python
 import os
+import re
+import time
 
 import feedparser
+import logging,logging.config
+import lxml.html
+import urllib
+from subprocess import call
 
 import ia
 
 
-root_dir = os.getcwd()
-logging.config.fileConfig('logging.conf')
-cLogger = logging.getLogger('console')
+ROOT_DIR = os.getcwd()
+HOME_DIR = os.getcwd()
+DOWNLOAD_DIR = '/1/incoming/tmp/nasa-rss'
 
+logging.config.fileConfig('logging.conf')
+console_logger = logging.getLogger('console')
+mkdir = lambda x: os.mkdir(x) if not os.path.exists(x) else None
+
+
+#______________________________________________________________________________
 def get_feed_list():
-    masterFeedList = "http://www.nasa.gov/rss/internetarchive/index.html"
-    parsed = lxml.html.fromstring(urllib.urlopen(masterFeedList).read())
+    master_feed_list = "http://www.nasa.gov/rss/internetarchive/index.html"
+    parsed = lxml.html.fromstring(urllib.urlopen(master_feed_list).read())
     feedList =  ([link[2] for link in parsed.iterlinks() if link[2].endswith(
                  'rss')])
-    feedList = list(set(feedList))
-    return feedList
+    return list(set(feedList))
 
+#______________________________________________________________________________
 def build_collection_dict():
-    collection_file = '/home/jake/public_html/Internet-Archive-NASA-Feed-Scraper/rsscollections.txt'
-    collection_list = open(collection_file,'rb').read().split('\n')
+    collection_file = open('./rsscollections.txt').readlines()
+    collection_list = [x.strip() for x in collection_file]
     dictionary = {}
     for collection in collection_list:
-        k,v = collection.split(',')[0], collection.split(',')[-1]
-        dictionary[v] = k
-        if not k:
+        k,v = collection.split(',')[-1], collection.split(',')[0]
+        dictionary[k] = v
+        if not v:
             continue
     return dictionary
 
+#______________________________________________________________________________
 def wget(mediaLink):
     wget = 'wget -q -nc %s' % mediaLink
     retcode = call(wget,shell=True)
 
-def main():                                                                  
-    ia.make('/1/incoming/tmp/nasa-rss').dir()
-    home = os.getcwd()            
-
-    # Build facet and collection dictionaries.
-    facet_file = os.path.join(root_dir, 'facets.txt')
+#______________________________________________________________________________
+def main():
+    mkdir(DOWNLOAD_DIR)
+    os.chdir(HOME_DIR)
+    facet_file = os.path.join(ROOT_DIR, 'facets.txt')
     facet = ia.facets(facet_file)
     facet_dict, longest_key = facet.build_dict()
     collection_dict = build_collection_dict()
-
     for feed in get_feed_list():
         if not feed in collection_dict:
+            print feed
             logging.warning('This feed needs to be assigned a collection: %s' % feed)
             continue
+        parsed = feedparser.parse(feed)
+        if parsed.bozo: logging.warning('%s is a bozo!' % feed)
+        for entry in parsed.entries:
+            try:
+                long_id = ( entry.media_content[0]['url'].split('/') [-1].split('.')[0] )
+                identifier = long_id.replace('_full','').replace('-full','')
 
-        parsed = feedparser.parse(feed)                                                                 
-        if parsed.bozo == 1: 
-            logging.warning('%s is a bozo!' % feed)                                    
-        for entry in parsed.entries:                                                                    
-            metaDict = {}                                                                               
-
-            try:                                                                                        
-                identifier = ( entry.media_content[0]['url'].split('/')
-                               [-1].split('.')[0] )
-                metaDict['identifier'] = identifier.replace('_full','').replace('-full','')
-                print '\n\n~~~~\n\nCreating item: %s\n\n' % metaDict['identifier']
-
-                if ia.details(metaDict['identifier']).exists() or ia.details(identifier).exists():
-                    cLogger.info('the identifier "%s" is not available' %
-                                 metaDict['identifier'] )
+                # Avoid duplicating items on archive.org
+                if ia.details(identifier).exists() or ia.details(long_id).exists():
+                    console_logger.info('SKIPPING :: %s already exists!' % identifier )
                     continue
 
-                ia.make(metaDict['identifier']).dir()
-
-                # re.sub('<[^<]+?> strips HTML tags from description                                  
-                metaDict['description'] = re.sub('<[^<]+?>', '', 
-                                                 entry.description).strip()
-                metaDict['collection'] = collection_dict[feed]
-                metaDict['source'] = entry.link                                                         
-                metaDict['title'] = entry.title                                                         
-                metaDict['licenseurl'] = 'http://www.nasaimages.org/Terms.html'                         
-                metaDict['date'] = time.strftime("%Y-%m-%d", entry.updated_parsed)                      
-                metaDict['mediatype'] = entry.media_content[0]['type'].split('/')[0]
-
+                """ CREATE ITEM >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> """
+                logging.info('CREATING :: %s' % identifier)
+                mkdir(identifier)
+                meta_dict = {'description': re.sub('<[^<]+?>', '', entry.description).strip(),
+                             'collection': collection_dict[feed],
+                             'source': entry.link,
+                             'title': entry.title,
+                             'licenseurl': 'http://www.nasaimages.org/Terms.html',
+                             'date': time.strftime("%Y-%m-%d", entry.updated_parsed),
+                             'mediatype': entry.media_content[0]['type'].split('/')[0]}
                 # Generate facets, and create subjects
-                facet_string = '%s %s %s' % (metaDict['description'],
-                                             metaDict['title'],
+                facet_string = '%s %s %s' % (identifier,
+                                             meta_dict['title'],
                                              entry['media_keywords'])
                 item_facets = facet.get_facets(facet_string, facet_dict, longest_key)
-                facet_list = []
-                for v in item_facets.itervalues():
-                    facet_list.append(v)
+                facet_list = [x for x in item_facets.itervalues()]
+                #facet_list = []
+                #for v in item_facets.itervalues():
+                #    facet_list.append(v)
                 if facet_list:
-                    metaDict['subject'] = ';'.join(facet_list)
-
-                cLogger.info('Generating Metadata files')
-                ia.make(metaDict['identifier'], metaDict).metadata()
-                cLogger.info('Downloading images')
+                    meta_dict['subject'] = ';'.join(facet_list)
+                console_logger.info('Generating Metadata files')
+                ia.make(meta_dict['identifier'], meta_dict).metadata()
+                console_logger.info('Downloading images')
                 wget(entry.media_content[0]['url'])
+                """ <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< CREATED ITEM """
 
-            except AttributeError:                                                                      
-                noMedia = ("%s doesn't appear to have any media!" % 
-                           entry.links[0].href)                 
-                logging.warning(noMedia)                                                                
-
-            os.chdir(home)           
-
+            except Exception, e:
+                logging.error(e)
+                pass
 if __name__ == "__main__":
     main()
-
